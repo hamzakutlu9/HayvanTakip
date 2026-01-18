@@ -9,7 +9,7 @@ import AnimalList from './components/AnimalList'
 import { HayvanEkleModal, IslemEkleModal, HayvanDetayModal } from './components/Modals'
 
 // API ADRESİ (RENDER LINKIN)
-const API_URL = "https://hayvantakip.onrender.com";
+const API_URL = "https://hayvantakip-1.onrender.com";
 
 function App() {
   const [aktifSayfa, setAktifSayfa] = useState('ozet')
