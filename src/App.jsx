@@ -6,62 +6,47 @@ import Sidebar from './components/Sidebar'
 import Dashboard from './components/Dashboard'
 import Assistant from './components/Assistant' 
 import AnimalList from './components/AnimalList'
-
-// MODALLAR
 import { HayvanEkleModal, IslemEkleModal, HayvanDetayModal } from './components/Modals'
+
+// API ADRESİ (RENDER LINKIN)
+const API_URL = "https://hayvantakip.onrender.com";
 
 function App() {
   const [aktifSayfa, setAktifSayfa] = useState('ozet')
-  
   const [istatistik, setIstatistik] = useState(null)
   const [hayvanlar, setHayvanlar] = useState([])
   const [analizler, setAnalizler] = useState({})
-  
   const [modalAcik, setModalAcik] = useState(false)
   const [olayModalAcik, setOlayModalAcik] = useState(false)
   const [detayModalAcik, setDetayModalAcik] = useState(false)
-  
   const [islemYapilacakHayvan, setIslemYapilacakHayvan] = useState(null)
   const [detayVerisi, setDetayVerisi] = useState(null)
 
   const [form, setForm] = useState({ 
-    kupe_no: "", 
-    isim: "", 
-    cinsiyet: "Dişi", 
-    dogum_tarihi: "",
-    fotograf: null 
+    kupe_no: "", isim: "", cinsiyet: "Dişi", dogum_tarihi: "", fotograf: null 
   })
   
   const [olayForm, setOlayForm] = useState({ 
-      olay_tipi: "Tohumlama", 
-      tarih: "", 
-      aciklama: "",
-      tohum_cinsi: "Simental" 
+      olay_tipi: "Tohumlama", tarih: "", aciklama: "", tohum_cinsi: "Simental" 
   })
 
+  // --- VERİ ÇEKME ---
   const veriGuncelle = () => {
     const ts = new Date().getTime(); 
-    axios.get(`http://127.0.0.1:8000/ozet?_=${ts}`)
-        .then(res => setIstatistik(res.data))
-        .catch(err => console.error("Özet Hatası:", err))
-
-    axios.get(`http://127.0.0.1:8000/hayvanlar/?_=${ts}`)
-        .then(res => {
-            setHayvanlar(res.data)
-            res.data.forEach(h => analizGetir(h.id))
-        })
-        .catch(err => console.error("Liste Hatası:", err))
+    axios.get(`${API_URL}/ozet?_=${ts}`).then(res => setIstatistik(res.data)).catch(e => console.log(e))
+    axios.get(`${API_URL}/hayvanlar/?_=${ts}`).then(res => {
+        setHayvanlar(res.data)
+        res.data.forEach(h => analizGetir(h.id))
+    }).catch(e => console.log(e))
   }
 
   const analizGetir = (id) => {
-      const ts = new Date().getTime();
-      axios.get(`http://127.0.0.1:8000/analiz/${id}?_=${ts}`)
-           .then(res => setAnalizler(prev => ({ ...prev, [id]: res.data })))
-           .catch(err => console.error("Analiz Hatası:", err));
+      axios.get(`${API_URL}/analiz/${id}`).then(res => setAnalizler(prev => ({ ...prev, [id]: res.data })))
   }
 
   useEffect(() => { veriGuncelle() }, [])
 
+  // --- HAYVAN KAYIT ---
   const kaydet = (e) => {
     e.preventDefault()
     const formData = new FormData();
@@ -71,11 +56,8 @@ function App() {
     formData.append("cinsiyet", form.cinsiyet);
     if (form.fotograf) { formData.append("fotograf", form.fotograf); }
 
-    axios.post('http://127.0.0.1:8000/hayvanlar/', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-    })
+    axios.post(`${API_URL}/hayvanlar/`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
     .then(() => {
-        alert("✅ Hayvan Başarıyla Kaydedildi"); 
         setModalAcik(false); 
         setForm({ kupe_no: "", isim: "", cinsiyet: "Dişi", dogum_tarihi: "", fotograf: null }); 
         veriGuncelle()
@@ -85,46 +67,41 @@ function App() {
 
   const sil = (id) => {
     if(window.confirm("Bu hayvanı ve geçmişini silmek istediğine emin misin?")) {
-      axios.delete(`http://127.0.0.1:8000/hayvanlar/${id}`).then(() => veriGuncelle());
+      axios.delete(`${API_URL}/hayvanlar/${id}`).then(() => veriGuncelle());
     }
   }
 
+  // --- İŞLEM KAYIT VE SİLME ---
   const islemSil = (islemId) => {
-      axios.delete(`http://127.0.0.1:8000/olaylar/${islemId}`)
-          .then(() => {
-              if (detayVerisi) { detayAc(detayVerisi.bilgi.id); }
-              veriGuncelle();
-          });
+      axios.delete(`${API_URL}/olaylar/${islemId}`).then(() => {
+          if (detayVerisi) { detayAc(detayVerisi.bilgi.id); }
+          veriGuncelle();
+      });
   }
 
   const detayAc = (id) => {
-      const ts = new Date().getTime();
-      axios.get(`http://127.0.0.1:8000/hayvanlar/${id}/detay?_=${ts}`)
-          .then(res => {
-              setDetayVerisi(res.data);
-              setDetayModalAcik(true);
-          });
+      axios.get(`${API_URL}/hayvanlar/${id}/detay`).then(res => {
+          setDetayVerisi(res.data);
+          setDetayModalAcik(true);
+      });
   }
 
-  // --- İŞLEM KAYDETME (DÜZELTİLDİ) ---
   const olayKaydet = (e) => {
     e.preventDefault()
-    
-    // Veriyi hem açıklama içine hem de ayrı alan olarak gönderiyoruz
     const gonderilecekVeri = {
         olay_tipi: olayForm.olay_tipi,
         tarih: olayForm.tarih,
         aciklama: olayForm.aciklama,
-        tohum_cinsi: olayForm.olay_tipi === "Tohumlama" ? olayForm.tohum_cinsi : null, // AYRI GÖNDERİM
+        tohum_cinsi: olayForm.olay_tipi === "Tohumlama" ? olayForm.tohum_cinsi : null,
         hayvan_id: islemYapilacakHayvan.id
     }
 
-    axios.post('http://127.0.0.1:8000/olaylar/', gonderilecekVeri)
+    axios.post(`${API_URL}/olaylar/`, gonderilecekVeri)
         .then(() => {
             setOlayModalAcik(false); 
             setOlayForm({ olay_tipi: "Tohumlama", tarih: "", aciklama: "", tohum_cinsi: "Simental" }); 
             veriGuncelle();
-            if(detayModalAcik) detayAc(islemYapilacakHayvan.id); // Detay sayfası açıksa yenile
+            if(detayModalAcik) detayAc(islemYapilacakHayvan.id); 
         })
         .catch(err => alert("İşlem kaydedilemedi."));
   }
