@@ -15,13 +15,7 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# Uploads Klasörü
-UPLOAD_DIR = "uploads"
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-
-# CORS (Bağlantı İzni)
+# CORS (Bağlantı İzni) - BURASI KRİTİK: Vercel'in Render'a bağlanmasını sağlar
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,12 +24,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Uploads Klasörü
+UPLOAD_DIR = "uploads"
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
 def get_db():
     db = SessionLocal()
     try: yield db
     finally: db.close()
 
-# ANALİZ FONKSİYONU (Hata Korumalı)
+# ANALİZ FONKSİYONU
 def detayli_analiz_hesapla(hayvan_id: int, db: Session):
     olaylar = db.query(models.Olay).filter(models.Olay.hayvan_id == hayvan_id).order_by(asc(models.Olay.tarih)).all()
     bugun = date.today()
@@ -77,7 +77,6 @@ def get_ozet(db: Session = Depends(get_db)):
                 if yas < 180: istatistik["buzagi_sayisi"] += 1
                 else: istatistik["inek_sayisi"] += 1
                 
-                # Gebe/Boş ve Sağım hesabı
                 analiz = detayli_analiz_hesapla(h.id, db)
                 if analiz["durum"] == "Gebe": istatistik["dolu_inek"] += 1
                 else: istatistik["bos_inek"] += 1
@@ -89,7 +88,6 @@ def get_ozet(db: Session = Depends(get_db)):
                         istatistik["sagilan"] += 1
         return istatistik
     except Exception as e:
-        print(f"HATA: {str(e)}")
         return {"toplam_hayvan": 0, "inek_sayisi": 0, "buzagi_sayisi": 0, "tosun_sayisi": 0, "dolu_inek": 0, "bos_inek": 0, "sagilan": 0}
 
 @app.post("/hayvanlar/")
@@ -106,7 +104,8 @@ async def create_hayvan(
         file_path = f"{UPLOAD_DIR}/{kupe_no}_{fotograf.filename}"
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(fotograf.file, buffer)
-        fotograf_url = f"http://127.0.0.1:8000/{file_path}"
+        # ARTIK LOCALHOST DEĞİL, CANLI LINK KULLANILIYOR
+        fotograf_url = f"https://hayvantakip.onrender.com/{file_path}"
     
     new_h = models.Hayvan(kupe_no=kupe_no, isim=isim, dogum_tarihi=date.fromisoformat(dogum_tarihi), cinsiyet=cinsiyet, fotograf_url=fotograf_url)
     db.add(new_h); db.commit(); db.refresh(new_h)
@@ -135,3 +134,10 @@ def create_olay(olay: schemas.OlayCreate, db: Session = Depends(get_db)):
 @app.get("/analiz/{id}")
 def get_analiz(id: int, db: Session = Depends(get_db)):
     return detayli_analiz_hesapla(id, db)
+
+# RENDER İÇİN PORT AYARI
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
